@@ -6,9 +6,9 @@ import logging
 import os
 import re
 import time
-import urllib.request
+
 import urllib.error
-import urllib.parse
+from urllib.request import urlopen
 
 log = logging.getLogger('inb4404')
 workpath = os.path.dirname(os.path.realpath(__file__))
@@ -34,8 +34,8 @@ def main():
     download_thread(thread)
 
 def load(url):
-    req = urllib.request.Request(url, headers={'User-Agent': '4chan Browser'})
-    return urllib.request.urlopen(req).read()
+    with urlopen(url) as resp:
+        return resp.read()
 
 def download_thread(thread_link):
     board = thread_link.split('/')[3]
