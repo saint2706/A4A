@@ -2,8 +2,6 @@
 import urllib.request, urllib.error, urllib.parse, argparse, logging
 import os, re, time
 import http.client
-import fileinput
-from multiprocessing import Process
 
 log = logging.getLogger('inb4404')
 workpath = os.path.dirname(os.path.realpath(__file__))
@@ -26,10 +24,7 @@ def main():
         logging.basicConfig(level=logging.INFO, format='[%(asctime)s] %(message)s', datefmt='%I:%M:%S %p')
 
     thread = args.thread[0].strip()
-    if thread[:4].lower() == 'http':
-        download_thread(thread)
-    else:
-        download_from_file(thread)
+    download_thread(thread)
 
 def load(url):
     req = urllib.request.Request(url, headers={'User-Agent': '4chan Browser'})
@@ -99,45 +94,9 @@ def download_thread(thread_link):
             log.info('Checking ' + board + '/' + thread)
         time.sleep(20)
 
-def download_from_file(filename):
-    running_links = []
-    while True:
-        processes = []
-        for link in [_f for _f in [line.strip() for line in open(filename) if line[:4] == 'http'] if _f]:
-            if link not in running_links:
-                running_links.append(link)
-                log.info('Added ' + link)
-
-            process = Process(target=download_thread, args=(link, ))
-            process.start()
-            processes.append([process, link])
-
-        if len(processes) == 0:
-            log.warning(filename + ' empty')
-
-        if args.reload:
-            time.sleep(60 * 5) # 5 minutes
-            links_to_remove = []
-            for process, link in processes:
-                if not process.is_alive():
-                    links_to_remove.append(link)
-                else:
-                    process.terminate()
-
-            for link in links_to_remove:
-                for line in fileinput.input(filename, inplace=True):
-                    print(line.replace(link, '-' + link), end='')
-                running_links.remove(link)
-                log.info('Removed ' + link)
-            if not args.less:
-                log.info('Reloading ' + args.thread[0]) # thread = filename here; reloading on next loop
-        else:
-            break
-
 
 if __name__ == '__main__':
     try:
         main()
     except KeyboardInterrupt:
         pass
-
