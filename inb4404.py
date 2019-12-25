@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 import urllib.request, urllib.error, urllib.parse, argparse, logging
 import os, re, time
-import http.client 
+import http.client
 import fileinput
 from multiprocessing import Process
 
@@ -23,7 +23,7 @@ def main():
     if args.date:
         logging.basicConfig(level=logging.INFO, format='[%(asctime)s] %(message)s', datefmt='%Y-%m-%d %I:%M:%S %p')
     else:
-        logging.basicConfig(level=logging.INFO, format='[%(asctime)s] %(message)s', datefmt='%I:%M:%S %p')    
+        logging.basicConfig(level=logging.INFO, format='[%(asctime)s] %(message)s', datefmt='%I:%M:%S %p')
 
     thread = args.thread[0].strip()
     if thread[:4].lower() == 'http':
@@ -41,7 +41,7 @@ def download_thread(thread_link):
     if len(thread_link.split('/')) > 6:
         thread_tmp = thread_link.split('/')[6].split('#')[0]
 
-        if args.use_names or os.path.exists(os.path.join(workpath, 'downloads', board, thread_tmp)):                
+        if args.use_names or os.path.exists(os.path.join(workpath, 'downloads', board, thread_tmp)):
             thread = thread_tmp
 
     directory = os.path.join(workpath, 'downloads', board, thread)
@@ -53,7 +53,7 @@ def download_thread(thread_link):
             regex = '(\/\/i(?:s|)\d*\.(?:4cdn|4chan)\.org\/\w+\/(\d+\.(?:jpg|png|gif|webm)))'
             regex_result = list(set(re.findall(regex, load(thread_link).decode('utf-8'))))
             regex_result = sorted(regex_result, key=lambda tup: tup[1])
-            regex_result_len = len(regex_result)            
+            regex_result_len = len(regex_result)
             regex_result_cnt = 1
 
             for link, img in regex_result:
@@ -86,7 +86,7 @@ def download_thread(thread_link):
         except urllib.error.HTTPError as err:
             time.sleep(10)
             try:
-                load(thread_link)    
+                load(thread_link)
             except urllib.error.HTTPError as err:
                 log.info('%s 404\'d', thread_link)
                 break
@@ -114,7 +114,7 @@ def download_from_file(filename):
 
         if len(processes) == 0:
             log.warning(filename + ' empty')
-        
+
         if args.reload:
             time.sleep(60 * 5) # 5 minutes
             links_to_remove = []
