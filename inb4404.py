@@ -1,7 +1,14 @@
 #!/usr/bin/python3
-import urllib.request, urllib.error, urllib.parse, argparse, logging
-import os, re, time
+
+import argparse
 import http.client
+import logging
+import os
+import re
+import time
+import urllib.request
+import urllib.error
+import urllib.parse
 
 log = logging.getLogger('inb4404')
 workpath = os.path.dirname(os.path.realpath(__file__))
