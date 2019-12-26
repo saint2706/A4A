@@ -1,9 +1,9 @@
 #!/usr/bin/python3
 
 import argparse
+import json
 import logging
 import os
-import re
 import sys
 import time
 
@@ -26,64 +26,63 @@ def parse_cli():
         "-d", "--date", action="store_true",
         help="show date as well")
     parser.add_argument(
-        "-n", "--use-names", action="store_true",
-        help="use thread names instead of the thread ids")
-    parser.add_argument(
         "-r", "--retries", type=int, default=5,
         help="how often to resume download after thrown errors")
 
     args = parser.parse_args()
 
 
-def load_regex(url):
+def parse_thread(url):
     # Custom header value is necessary to avoid 403 errors on 4chan.org
     # 4channel works just fine without
     req = Request(url, headers={'User-Agent': '4chan Archiver'})
     with urlopen(req) as resp:
-        data = resp.read()
+        resp_json = resp.read()
+        resp_json = json.loads(resp_json)
 
-    regex = '(\/\/i(?:s|)\d*\.(?:4cdn|4chan)\.org\/\w+\/(\d+\.(?:jpg|png|gif|webm)))'
-    regex_result = list(set(re.findall(regex, data.decode("utf-8"))))
-    regex_result = sorted(regex_result, key=lambda tup: tup[1])
+    files = [f"{p['tim']}{p['ext']}" for p in resp_json['posts'] if 'tim' in p]
 
-    return regex_result
+    return files
 
 
-def download_file(url, path):
-    with urlopen(url) as content, open(path, "wb") as f:
+def download_file(board, name):
+    url = f"https://i.4cdn.org/{board}/{name}"
+    with urlopen(url) as content, open(name, "wb") as f:
         f.write(content.read())
 
 
-def download_thread(thread_link):
-    board = thread_link.split("/")[3]
-    thread = thread_link.split("/")[5].split("#")[0]
-    if len(thread_link.split("/")) > 6:
-        thread_tmp = thread_link.split("/")[6].split("#")[0]
+def download_thread(link):
+    link = link.split("#")[0]
+    info = link.partition(".org/")[2]
+    # info has the form <board>/thread/<thread> or <board>/thread/<thread>/<dir name>
+    if len(info.split("/")) > 3:
+        board, _, thread_id, dir_name = info.split("/")
+    else:
+        board, _, thread_id = info.split("/")
+        dir_name = thread_id
 
-        if args.use_names or \
-           os.path.exists(os.path.join(workpath, "downloads", board, thread_tmp)):
-            thread = thread_tmp
+    out_dir = os.path.join(workpath, "downloads", board, dir_name)
+    if not os.path.exists(out_dir):
+        os.makedirs(out_dir)
+    os.chdir(out_dir)
 
-    directory = os.path.join(workpath, "downloads", board, thread)
-    if not os.path.exists(directory):
-        os.makedirs(directory)
-
+    api_call = f"https://a.4cdn.org/{board}/thread/{thread_id}.json"
     try:
-        results = load_regex(thread_link)
+        files = parse_thread(api_call)
     except urllib.error.HTTPError:
         time.sleep(5)
         try:
-            results = load_regex(thread_link)
+            files = parse_thread(api_call)
         except urllib.error.HTTPError:
-            log.info("%s 404'd", thread_link)
+            log.info("%s 404'd", link)
             sys.exit(1)
     except urllib.error.URLError:
         log.warning("Couldn't establish connection!")
         sys.exit(1)
 
-    results_len = len(results)
-    # Width of the overall result count in characters for prettier output
-    len_width = len(str(results_len))
+    file_count = len(files)
+    # Width of the overall file count in characters for prettier output
+    width = len(str(file_count))
 
     # Retries imply attempts after the first try failed
     # So just increase the range by one to include the initial try
@@ -94,13 +93,11 @@ def download_thread(thread_link):
 
         count = 1
         try:
-            for link, img in results:
-                img_path = os.path.join(directory, img)
-                if not os.path.exists(img_path):
-                    download_file(f"https:{link}", img_path)
-
-                    progress = f"[{count: >{len_width}}/{results_len}]"
-                    log.info("%s %s/%s/%s", progress, board, thread, img)
+            for f in files:
+                if not os.path.exists(f):
+                    download_file(board, f)
+                    progress = f"[{count: >{width}}/{file_count}]"
+                    log.info("%s %s/%s/%s", progress, board, thread_id, f)
                 count += 1
             # Leave attempt loop early if all files were downloaded successfully
             break
