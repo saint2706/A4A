@@ -51,7 +51,8 @@ def download_thread(thread_link):
     if len(thread_link.split('/')) > 6:
         thread_tmp = thread_link.split('/')[6].split('#')[0]
 
-        if args.use_names or os.path.exists(os.path.join(workpath, 'downloads', board, thread_tmp)):
+        if args.use_names or \
+           os.path.exists(os.path.join(workpath, 'downloads', board, thread_tmp)):
             thread = thread_tmp
 
     directory = os.path.join(workpath, 'downloads', board, thread)
@@ -103,9 +104,15 @@ def main():
     parse_cli()
 
     if args.date:
-        logging.basicConfig(level=logging.INFO, format='[%(asctime)s] %(message)s', datefmt='%Y-%m-%d %I:%M:%S %p')
+        logging.basicConfig(
+            level=logging.INFO,
+            format='[%(asctime)s] %(message)s',
+            datefmt='%Y-%m-%d %I:%M:%S %p')
     else:
-        logging.basicConfig(level=logging.INFO, format='[%(asctime)s] %(message)s', datefmt='%I:%M:%S %p')
+        logging.basicConfig(
+            level=logging.INFO,
+            format='[%(asctime)s] %(message)s',
+            datefmt='%I:%M:%S %p')
 
     thread = args.thread[0].strip()
     download_thread(thread)
