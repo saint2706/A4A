@@ -8,7 +8,7 @@ import sys
 import time
 
 import urllib.error
-from urllib.request import urlopen
+from urllib.request import Request, urlopen
 
 log = logging.getLogger("inb4404")
 workpath = os.path.dirname(os.path.realpath(__file__))
@@ -36,7 +36,10 @@ def parse_cli():
 
 
 def load_regex(url):
-    with urlopen(url) as resp:
+    # Custom header value is necessary to avoid 403 errors on 4chan.org
+    # 4channel works just fine without
+    req = Request(url, headers={'User-Agent': '4chan Archiver'})
+    with urlopen(req) as resp:
         data = resp.read()
 
     regex = '(\/\/i(?:s|)\d*\.(?:4cdn|4chan)\.org\/\w+\/(\d+\.(?:jpg|png|gif|webm)))'
