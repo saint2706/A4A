@@ -23,9 +23,6 @@ def parse_cli():
         "thread", nargs=1,
         help="url of the thread")
     parser.add_argument(
-        "-d", "--date", action="store_true",
-        help="show date as well")
-    parser.add_argument(
         "-r", "--retries", type=int, default=5,
         help="how often to resume download after thrown errors")
 
@@ -108,16 +105,8 @@ def download_thread(link):
 def main():
     parse_cli()
 
-    if args.date:
-        logging.basicConfig(
-            level=logging.INFO,
-            format="[%(asctime)s] %(message)s",
-            datefmt="%Y-%m-%d %I:%M:%S %p")
-    else:
-        logging.basicConfig(
-            level=logging.INFO,
-            format="[%(asctime)s] %(message)s",
-            datefmt="%I:%M:%S %p")
+    logging.basicConfig(level=logging.INFO, format="[%(asctime)s] %(message)s",
+                        datefmt="%I:%M:%S %p")
 
     thread = args.thread[0].strip()
     download_thread(thread)
