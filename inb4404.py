@@ -1,7 +1,6 @@
 #!/usr/bin/python3
 
 import argparse
-import http.client
 import logging
 import os
 import re
@@ -91,7 +90,7 @@ def download_thread(thread_link):
                 log.info('%s 404\'d', thread_link)
                 break
             continue
-        except (urllib.error.URLError, http.client.BadStatusLine, http.client.IncompleteRead):
+        except urllib.error.URLError:
             if not args.less:
                 log.warning('Something went wrong')
 
