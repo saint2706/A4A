@@ -2,7 +2,6 @@
 
 import argparse
 import json
-import logging
 import os
 import sys
 import time
@@ -10,9 +9,18 @@ import time
 import urllib.error
 from urllib.request import Request, urlopen
 
-log = logging.getLogger("inb4404")
 workpath = os.path.dirname(os.path.realpath(__file__))
 args = None
+
+
+def err(*args, **kwargs):
+    """Print to stderr."""
+    print(f"[{time.strftime('%X')}]", *args, file=sys.stderr, **kwargs)
+
+
+def msg(*args, **kwargs):
+    """Print to stdout."""
+    print(f"[{time.strftime('%X')}]", *args, **kwargs)
 
 
 def parse_cli():
@@ -71,10 +79,10 @@ def download_thread(link):
         try:
             files = parse_thread(api_call)
         except urllib.error.HTTPError:
-            log.info("%s 404'd", link)
+            err(f"{link} 404'd!")
             sys.exit(1)
     except urllib.error.URLError:
-        log.warning("Couldn't establish connection!")
+        err("Couldn't establish connection!")
         sys.exit(1)
 
     file_count = len(files)
@@ -85,7 +93,7 @@ def download_thread(link):
     # So just increase the range by one to include the initial try
     for attempt in range(args.retries+1):
         if attempt > 0:
-            log.info("Retrying... (%d out of %d attempts)", attempt, args.retries)
+            err(f"Retrying... ({attempt} out of {args.retries} attempts)")
             time.sleep(5)
 
         count = 1
@@ -94,20 +102,16 @@ def download_thread(link):
                 if not os.path.exists(f):
                     download_file(board, f)
                     progress = f"[{count: >{width}}/{file_count}]"
-                    log.info("%s %s/%s/%s", progress, board, thread_id, f)
+                    msg(f"{progress} {board}/{thread_id}/{f}")
                 count += 1
             # Leave attempt loop early if all files were downloaded successfully
             break
         except urllib.error.URLError:
-            log.warning("Lost connection!")
+            err("Lost connection!")
 
 
 def main():
     parse_cli()
-
-    logging.basicConfig(level=logging.INFO, format="[%(asctime)s] %(message)s",
-                        datefmt="%I:%M:%S %p")
-
     thread = args.thread[0].strip()
     download_thread(thread)
 
