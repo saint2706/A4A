@@ -22,9 +22,6 @@ def parse_cli():
         "thread", nargs=1,
         help="url of the thread (or filename; one url per line)")
     parser.add_argument(
-        "-c", "--with-counter", action="store_true",
-        help="show a counter next the the image that has been downloaded")
-    parser.add_argument(
         "-d", "--date", action="store_true",
         help="show date as well")
     parser.add_argument(
@@ -33,9 +30,6 @@ def parse_cli():
     parser.add_argument(
         "-n", "--use-names", action="store_true",
         help="use thread names instead of the thread ids")
-    parser.add_argument(
-        "-r", "--reload", action="store_true",
-        help="reload the queue file every 5 minutes")
 
     args = parser.parse_args()
 
@@ -80,11 +74,8 @@ def download_thread(thread_link):
                 if not os.path.exists(img_path):
                     download_file(f"https:{link}", img_path)
 
-                    if args.with_counter:
-                        progress = f"[{regex_result_cnt: >{width}}/{regex_result_len}] "
-                    else:
-                        progress = ""
-                    log.info("%s%s/%s/%s", progress, board, thread, img)
+                    progress = f"[{regex_result_cnt: >{width}}/{regex_result_len}]"
+                    log.info("%s %s/%s/%s", progress, board, thread, img)
 
                 regex_result_cnt += 1
 
