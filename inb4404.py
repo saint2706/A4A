@@ -15,6 +15,32 @@ workpath = os.path.dirname(os.path.realpath(__file__))
 args = None
 
 
+def parse_cli():
+    global args
+
+    parser = argparse.ArgumentParser(description='inb4404')
+    parser.add_argument(
+        'thread', nargs=1,
+        help='url of the thread (or filename; one url per line)')
+    parser.add_argument(
+        '-c', '--with-counter', action='store_true',
+        help='show a counter next the the image that has been downloaded')
+    parser.add_argument(
+        '-d', '--date', action='store_true',
+        help='show date as well')
+    parser.add_argument(
+        '-l', '--less', action='store_true',
+        help='show less information (surpresses checking messages)')
+    parser.add_argument(
+        '-n', '--use-names', action='store_true',
+        help='use thread names instead of the thread ids')
+    parser.add_argument(
+        '-r', '--reload', action='store_true',
+        help='reload the queue file every 5 minutes')
+
+    args = parser.parse_args()
+
+
 def load(url):
     with urlopen(url) as resp:
         return resp.read()
@@ -75,15 +101,7 @@ def download_thread(thread_link):
 
 
 def main():
-    global args
-    parser = argparse.ArgumentParser(description='inb4404')
-    parser.add_argument('thread', nargs=1, help='url of the thread (or filename; one url per line)')
-    parser.add_argument('-c', '--with-counter', action='store_true', help='show a counter next the the image that has been downloaded')
-    parser.add_argument('-d', '--date', action='store_true', help='show date as well')
-    parser.add_argument('-l', '--less', action='store_true', help='show less information (surpresses checking messages)')
-    parser.add_argument('-n', '--use-names', action='store_true', help='use thread names instead of the thread ids (...4chan.org/board/thread/thread-id/thread-name)')
-    parser.add_argument('-r', '--reload', action='store_true', help='reload the queue file every 5 minutes')
-    args = parser.parse_args()
+    parse_cli()
 
     if args.date:
         logging.basicConfig(level=logging.INFO, format='[%(asctime)s] %(message)s', datefmt='%Y-%m-%d %I:%M:%S %p')
