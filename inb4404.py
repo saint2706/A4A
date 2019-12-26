@@ -4,6 +4,7 @@ import argparse
 import logging
 import os
 import re
+import sys
 import time
 
 import urllib.error
@@ -20,7 +21,7 @@ def parse_cli():
     parser = argparse.ArgumentParser(description="inb4404")
     parser.add_argument(
         "thread", nargs=1,
-        help="url of the thread (or filename; one url per line)")
+        help="url of the thread")
     parser.add_argument(
         "-d", "--date", action="store_true",
         help="show date as well")
@@ -30,13 +31,22 @@ def parse_cli():
     parser.add_argument(
         "-n", "--use-names", action="store_true",
         help="use thread names instead of the thread ids")
+    parser.add_argument(
+        "-r", "--retries", type=int, default=5,
+        help="how often to resume download after thrown errors")
 
     args = parser.parse_args()
 
 
-def load(url):
+def load_regex(url):
     with urlopen(url) as resp:
-        return resp.read()
+        data = resp.read()
+
+    regex = '(\/\/i(?:s|)\d*\.(?:4cdn|4chan)\.org\/\w+\/(\d+\.(?:jpg|png|gif|webm)))'
+    regex_result = list(set(re.findall(regex, data.decode("utf-8"))))
+    regex_result = sorted(regex_result, key=lambda tup: tup[1])
+
+    return regex_result
 
 
 def download_file(url, path):
@@ -58,42 +68,45 @@ def download_thread(thread_link):
     if not os.path.exists(directory):
         os.makedirs(directory)
 
-    while True:
+    try:
+        results = load_regex(thread_link)
+    except urllib.error.HTTPError:
+        time.sleep(5)
         try:
-            regex = '(\/\/i(?:s|)\d*\.(?:4cdn|4chan)\.org\/\w+\/(\d+\.(?:jpg|png|gif|webm)))'
-            regex_result = list(set(re.findall(regex, load(thread_link).decode("utf-8"))))
-            regex_result = sorted(regex_result, key=lambda tup: tup[1])
-            regex_result_len = len(regex_result)
-            regex_result_cnt = 1
-            # Width of the overall result count in characters
-            # Used if counter is requested for prettier output
-            width = len(str(regex_result_len))
+            results = load_regex(thread_link)
+        except urllib.error.HTTPError:
+            log.info("%s 404'd", thread_link)
+            sys.exit(1)
+    except urllib.error.URLError:
+        log.warning("Couldn't establish connection!")
+        sys.exit(1)
 
-            for link, img in regex_result:
+    results_len = len(results)
+    # Width of the overall result count in characters for prettier output
+    len_width = len(str(results_len))
+
+    # Retries imply attempts after the first try failed
+    # So just increase the range by one to include the initial try
+    for attempt in range(args.retries+1):
+        if attempt > 0:
+            log.info("Retrying... (%d out of %d attempts)", attempt, args.retries)
+            time.sleep(5)
+
+        count = 1
+        try:
+            for link, img in results:
                 img_path = os.path.join(directory, img)
                 if not os.path.exists(img_path):
                     download_file(f"https:{link}", img_path)
 
-                    progress = f"[{regex_result_cnt: >{width}}/{regex_result_len}]"
+                    progress = f"[{count: >{len_width}}/{results_len}]"
                     log.info("%s %s/%s/%s", progress, board, thread, img)
-
-                regex_result_cnt += 1
-
-        except urllib.error.HTTPError:
-            time.sleep(10)
-            try:
-                load(thread_link)
-            except urllib.error.HTTPError:
-                log.info("%s 404'd", thread_link)
-                break
-            continue
+                count += 1
+            # Leave attempt loop early if all files were downloaded successfully
+            break
         except urllib.error.URLError:
             if not args.less:
                 log.warning("Something went wrong")
-
-        if not args.less:
-            log.info("Checking %s/%s", board, thread)
-        time.sleep(20)
 
 
 def main():
