@@ -9,14 +9,12 @@ The goal of 4chan-archiver (as I call this fork unofficially) is the provide a s
 ## Usage
 
 ```
-usage: inb4404.py [-h] [-d] [-n] [-r N] thread
+usage: inb4404.py [-h] [-r N] thread
 
 positional arguments:
   thread              url of the thread
 
 optional arguments:
   -h, --help          show this help message and exit
-  -d, --date          show date as well
-  -n, --use-names     use thread names instead of the thread ids
   -r, --retries N     how often to resume download after thrown errors
 ```
