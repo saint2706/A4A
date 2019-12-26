@@ -26,9 +26,6 @@ def parse_cli():
         "-d", "--date", action="store_true",
         help="show date as well")
     parser.add_argument(
-        "-l", "--less", action="store_true",
-        help="show less information (surpresses checking messages)")
-    parser.add_argument(
         "-n", "--use-names", action="store_true",
         help="use thread names instead of the thread ids")
     parser.add_argument(
@@ -105,8 +102,7 @@ def download_thread(thread_link):
             # Leave attempt loop early if all files were downloaded successfully
             break
         except urllib.error.URLError:
-            if not args.less:
-                log.warning("Something went wrong")
+            log.warning("Lost connection!")
 
 
 def main():
