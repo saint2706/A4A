@@ -45,6 +45,11 @@ def load(url):
         return resp.read()
 
 
+def download_file(url, path):
+    with urlopen(url) as content, open(path, "wb") as f:
+        f.write(content.read())
+
+
 def download_thread(thread_link):
     board = thread_link.split("/")[3]
     thread = thread_link.split("/")[5].split("#")[0]
@@ -73,17 +78,13 @@ def download_thread(thread_link):
             for link, img in regex_result:
                 img_path = os.path.join(directory, img)
                 if not os.path.exists(img_path):
-                    data = load(f"https:{link}")
+                    download_file(f"https:{link}", img_path)
 
                     if args.with_counter:
                         progress = f"[{regex_result_cnt: >{width}}/{regex_result_len}] "
                     else:
                         progress = ""
-
-                    log.info(progress + board + thread + img)
-
-                    with open(img_path, 'wb') as f:
-                        f.write(data)
+                    log.info("%s%s/%s/%s", progress, board, thread, img)
 
                 regex_result_cnt += 1
 
