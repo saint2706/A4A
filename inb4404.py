@@ -9,8 +9,12 @@ import time
 import urllib.error
 from urllib.request import Request, urlopen
 
+import asyncio
+import aiohttp
+
 workpath = os.path.dirname(os.path.realpath(__file__))
-args = None
+opts = None
+count = 0
 
 
 def err(*args, **kwargs):
@@ -24,7 +28,7 @@ def msg(*args, **kwargs):
 
 
 def parse_cli():
-    global args
+    global opts
 
     parser = argparse.ArgumentParser(description="inb4404")
     parser.add_argument(
@@ -32,9 +36,12 @@ def parse_cli():
         help="url of the thread")
     parser.add_argument(
         "-r", "--retries", type=int, default=5,
-        help="how often to resume download after thrown errors")
+        help="how often to resume download after thrown errors (N<0 to retry indefinitely)")
+    parser.add_argument(
+        "--connections", type=int, default=10,
+        help="number of connections to use")
 
-    args = parser.parse_args()
+    opts = parser.parse_args()
 
 
 def parse_thread(url):
@@ -50,13 +57,28 @@ def parse_thread(url):
     return files
 
 
-def download_file(board, name):
+async def download_file(board, thread, name, file_count, session):
+    global count
+
+    if os.path.exists(name):
+        count += 1
+        return
+
     url = f"https://i.4cdn.org/{board}/{name}"
-    with urlopen(url) as content, open(name, "wb") as f:
-        f.write(content.read())
+    async with session.get(url) as media:
+        with open(name, "wb") as f:
+            while True:
+                chunk = await media.content.read(1024)
+                if not chunk:
+                    break
+                f.write(chunk)
+
+    count += 1
+    progress = f"[{count: >{len(str(file_count))}}/{file_count}]"
+    msg(f"{progress} {board}/{thread}/{name}")
 
 
-def download_thread(link):
+async def download_thread(link):
     link = link.split("#")[0]
     info = link.partition(".org/")[2]
     # info has the form <board>/thread/<thread> or <board>/thread/<thread>/<dir name>
@@ -85,38 +107,32 @@ def download_thread(link):
         err("Couldn't establish connection!")
         sys.exit(1)
 
-    file_count = len(files)
-    # Width of the overall file count in characters for prettier output
-    width = len(str(file_count))
-
+    tout = aiohttp.ClientTimeout(total=None)
+    conn = aiohttp.TCPConnector(limit=opts.connections)
     # Retries imply attempts after the first try failed
-    # So the max. number of attempts is args.retries+1
+    # So the max. number of attempts is opts.retries+1
     attempt = 0
-    while attempt <= args.retries or args.retries < 0:
+    while attempt <= opts.retries or opts.retries < 0:
         if attempt > 0:
             err(f"Retrying... ({attempt} out of "
-                f"{args.retries if args.retries > 0 else 'Inf'} attempts)")
+                f"{opts.retries if opts.retries > 0 else 'Inf'} attempts)")
             time.sleep(5)
 
-        count = 1
         try:
-            for f in files:
-                if not os.path.exists(f):
-                    download_file(board, f)
-                    progress = f"[{count: >{width}}/{file_count}]"
-                    msg(f"{progress} {board}/{thread_id}/{f}")
-                count += 1
+            async with aiohttp.ClientSession(timeout=tout, connector=conn) as session:
+                tasks = [download_file(board, thread_id, f, len(files), session) for f in files]
+                await asyncio.gather(*tasks)
             # Leave attempt loop early if all files were downloaded successfully
             break
-        except urllib.error.URLError:
+        except aiohttp.ClientConnectionError:
             err("Lost connection!")
             attempt += 1
 
 
 def main():
     parse_cli()
-    thread = args.thread[0].strip()
-    download_thread(thread)
+    thread = opts.thread[0].strip()
+    asyncio.run(download_thread(thread), debug=False)
 
 
 if __name__ == '__main__':
