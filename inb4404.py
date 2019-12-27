@@ -90,10 +90,12 @@ def download_thread(link):
     width = len(str(file_count))
 
     # Retries imply attempts after the first try failed
-    # So just increase the range by one to include the initial try
-    for attempt in range(args.retries+1):
+    # So the max. number of attempts is args.retries+1
+    attempt = 0
+    while attempt <= args.retries or args.retries < 0:
         if attempt > 0:
-            err(f"Retrying... ({attempt} out of {args.retries} attempts)")
+            err(f"Retrying... ({attempt} out of "
+                f"{args.retries if args.retries > 0 else 'Inf'} attempts)")
             time.sleep(5)
 
         count = 1
@@ -108,6 +110,7 @@ def download_thread(link):
             break
         except urllib.error.URLError:
             err("Lost connection!")
+            attempt += 1
 
 
 def main():
