@@ -66,12 +66,17 @@ async def download_file(board, dir_name, name, file_count, session):
 
     url = f"https://i.4cdn.org/{board}/{name}"
     async with session.get(url) as media:
-        with open(name, "wb") as f:
+        # Open file initially with .part suffix
+        with open(f"{name}.part", "wb") as f:
             while True:
                 chunk = await media.content.read(1024)
                 if not chunk:
                     break
                 f.write(chunk)
+
+    # Remove .part suffix once complete
+    # After this point file won't get removed if script gets interrupted
+    os.rename(f"{name}.part", name)
 
     count += 1
     progress = f"[{count: >{len(str(file_count))}}/{file_count}]"
@@ -127,6 +132,14 @@ async def download_thread(link):
         except aiohttp.ClientConnectionError:
             err("Lost connection!")
             attempt += 1
+        finally:
+            clean()
+
+
+def clean():
+    """Clean output directory of any partially downloaded (.part) files."""
+    for f in [f for f in os.listdir() if f.endswith(".part")]:
+        os.remove(f)
 
 
 def main():
