@@ -57,7 +57,7 @@ def parse_thread(url):
     return files
 
 
-async def download_file(board, thread, name, file_count, session):
+async def download_file(board, dir_name, name, file_count, session):
     global count
 
     if os.path.exists(name):
@@ -75,7 +75,7 @@ async def download_file(board, thread, name, file_count, session):
 
     count += 1
     progress = f"[{count: >{len(str(file_count))}}/{file_count}]"
-    msg(f"{progress} {board}/{thread}/{name}")
+    msg(f"{progress} {board}/{dir_name}/{name}")
 
 
 async def download_thread(link):
@@ -120,7 +120,7 @@ async def download_thread(link):
 
         try:
             async with aiohttp.ClientSession(timeout=tout, connector=conn) as session:
-                tasks = [download_file(board, thread_id, f, len(files), session) for f in files]
+                tasks = [download_file(board, dir_name, f, len(files), session) for f in files]
                 await asyncio.gather(*tasks)
             # Leave attempt loop early if all files were downloaded successfully
             break
