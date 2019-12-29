@@ -1,15 +1,16 @@
 #!/usr/bin/python3
 
 import argparse
+import asyncio
+import fnmatch
 import json
 import os
 import sys
 import time
-
 import urllib.error
+
 from urllib.request import Request, urlopen
 
-import asyncio
 import aiohttp
 
 workpath = os.path.dirname(os.path.realpath(__file__))
@@ -32,7 +33,7 @@ def parse_cli():
 
     parser = argparse.ArgumentParser(description="inb4404")
     parser.add_argument(
-        "thread", nargs=1,
+        "thread", nargs="+",
         help="url of the thread")
     parser.add_argument(
         "-r", "--retries", type=int, default=5,
@@ -85,6 +86,8 @@ async def download_file(board, dir_name, name, file_count, session):
 
 async def download_thread(link):
     link = link.split("#")[0]
+    msg(f"Download: {link}")
+
     info = link.partition(".org/")[2]
     # info has the form <board>/thread/<thread> or <board>/thread/<thread>/<dir name>
     if len(info.split("/")) > 3:
@@ -143,9 +146,14 @@ def clean():
 
 
 def main():
+    global count
+
     parse_cli()
-    thread = opts.thread[0].strip()
-    asyncio.run(download_thread(thread), debug=False)
+    # Weed out clearly wrong input
+    opts.thread = fnmatch.filter(opts.thread, "*boards.4chan*.org/*/thread/*")
+    for t in opts.thread:
+        count = 0
+        asyncio.run(download_thread(t), debug=False)
 
 
 if __name__ == '__main__':
