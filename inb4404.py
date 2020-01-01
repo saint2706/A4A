@@ -15,7 +15,16 @@ import aiohttp
 
 workpath = os.path.dirname(os.path.realpath(__file__))
 opts = None
-count = 0
+# Dict to store all progress related information
+# This is purely used for progress messages
+info = {
+    't_count': 0,
+    't_width': 0,
+    'threads': 0,
+    'f_count': 0,
+    'f_width': 0,
+    'files': 0,
+}
 
 
 def err(*args, **kwargs):
@@ -58,11 +67,11 @@ def parse_thread(url):
     return files
 
 
-async def download_file(board, dir_name, name, file_count, session):
-    global count
+async def download_file(board, dir_name, name, session):
+    global info
 
     if os.path.exists(name):
-        count += 1
+        info['f_count'] += 1
         return
 
     url = f"https://i.4cdn.org/{board}/{name}"
@@ -79,21 +88,23 @@ async def download_file(board, dir_name, name, file_count, session):
     # After this point file won't get removed if script gets interrupted
     os.rename(f"{name}.part", name)
 
-    count += 1
-    progress = f"[{count: >{len(str(file_count))}}/{file_count}]"
-    msg(f"{progress} {board}/{dir_name}/{name}")
+    info['f_count'] += 1
+    t_progress = f"[{info['t_count']: >{info['t_width']}}/{info['threads']}]"
+    f_progress = f"[{info['f_count']: >{info['f_width']}}/{info['files']}]"
+    msg(f"{t_progress} {f_progress} {board}/{dir_name}/{name}")
 
 
 async def download_thread(link):
     link = link.split("#")[0]
-    msg(f"Download: {link}")
+    t_progress = f"[{info['t_count']: >{info['t_width']}}/{info['threads']}]"
+    msg(f"{t_progress} {link}")
 
-    info = link.partition(".org/")[2]
-    # info has the form <board>/thread/<thread> or <board>/thread/<thread>/<dir name>
-    if len(info.split("/")) > 3:
-        board, _, thread_id, dir_name = info.split("/")
+    data = link.partition(".org/")[2]
+    # data has the form <board>/thread/<thread> or <board>/thread/<thread>/<dir name>
+    if len(data.split("/")) > 3:
+        board, _, thread_id, dir_name = data.split("/")
     else:
-        board, _, thread_id = info.split("/")
+        board, _, thread_id = data.split("/")
         dir_name = thread_id
 
     out_dir = os.path.join(workpath, "downloads", board, dir_name)
@@ -115,6 +126,10 @@ async def download_thread(link):
         err("Couldn't establish connection!")
         sys.exit(1)
 
+    info['files'] = len(files)
+    info['f_width'] = len(str(info['files']))
+    info['f_count'] = 0
+
     tout = aiohttp.ClientTimeout(total=None)
     conn = aiohttp.TCPConnector(limit=opts.connections)
     # Retries imply attempts after the first try failed
@@ -128,7 +143,7 @@ async def download_thread(link):
 
         try:
             async with aiohttp.ClientSession(timeout=tout, connector=conn) as session:
-                tasks = [download_file(board, dir_name, f, len(files), session) for f in files]
+                tasks = [download_file(board, dir_name, f, session) for f in files]
                 await asyncio.gather(*tasks)
             # Leave attempt loop early if all files were downloaded successfully
             break
@@ -146,13 +161,15 @@ def clean():
 
 
 def main():
-    global count
+    global info
 
     parse_cli()
     # Weed out clearly wrong input
     opts.thread = fnmatch.filter(opts.thread, "*boards.4chan*.org/*/thread/*")
+    info['threads'] = len(opts.thread)
+    info['t_width'] = len(str(info['threads']))
     for t in opts.thread:
-        count = 0
+        info['t_count'] += 1
         asyncio.run(download_thread(t), debug=False)
 
 
