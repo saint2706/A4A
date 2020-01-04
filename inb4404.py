@@ -13,18 +13,136 @@ from urllib.request import Request, urlopen
 
 import aiohttp
 
-workpath = os.path.dirname(os.path.realpath(__file__))
-opts = None
-# Dict to store all progress related information
-# This is purely used for progress messages
-info = {
-    't_count': 0,
-    't_width': 0,
-    'threads': 0,
-    'f_count': 0,
-    'f_width': 0,
-    'files': 0,
-}
+
+class DownloadableThread():
+    """Store thread-related information and handle its processing."""
+
+    def __init__(self, position, link):
+        """Initialize thread object."""
+        self.pos = position
+        self.link = link.split("#")[0]
+
+        info = link.partition(".org/")[2]
+        # info has the form <board>/thread/<thread> or <board>/thread/<thread>/<dir name>
+        if len(info.split("/")) > 3:
+            self.board, _, self.id, self.dir = info.split("/")
+        else:
+            self.board, _, self.id = info.split("/")
+            self.dir = self.id
+
+        self.files = self.gather_files()
+        self.count = 0
+
+    def resolve_path(self):
+        """Assemble final output path and change the working directory."""
+        # This is the fixed directory template
+        out_dir = os.path.join(script_path, "downloads", self.board, self.dir)
+
+        if not os.path.exists(out_dir):
+            os.makedirs(out_dir)
+        os.chdir(out_dir)
+
+    def gather_files(self):
+        """Contact 4chan's API to get the names of all files in a thread."""
+        api_call = f"https://a.4cdn.org/{self.board}/thread/{self.id}.json"
+        # Custom header value is necessary to avoid 403 errors on 4chan.org
+        # 4channel works just fine without
+        req = Request(api_call, headers={'User-Agent': '4chan Archiver'})
+        files = []
+
+        for _ in range(2):
+            try:
+                with urlopen(req) as resp:
+                    resp_json = resp.read()
+                    resp_json = json.loads(resp_json)
+
+                files = [f"{p['tim']}{p['ext']}"
+                         for p in resp_json['posts'] if 'tim' in p]
+                break
+            except urllib.error.HTTPError:
+                time.sleep(5)
+                continue
+            except urllib.error.URLError:
+                if self.pos == 1:
+                    err("Couldn't establish connection!")
+                else:
+                    err("Lost connection!")
+                sys.exit(1)
+
+        return files
+
+    def fetch_progress(self):
+        """Return thread-wise and file-wise progress."""
+        threads = len(opts.thread)
+        files = len(self.files)
+        t_width = len(str(threads))
+        f_width = len(str(files))
+
+        t_progress = f"[{self.pos: >{t_width}}/{threads}]"
+        f_progress = f"[{self.count: >{f_width}}/{files}]"
+
+        if self.count:
+            progress = f"{t_progress} {f_progress}"
+        else:
+            progress = t_progress
+
+        return progress
+
+    async def get_file(self, name, session):
+        """Download a single file."""
+        if os.path.exists(name):
+            self.count += 1
+            return
+
+        link = f"https://i.4cdn.org/{self.board}/{name}"
+        async with session.get(link) as media:
+            # Open file initially with .part suffix
+            with open(f"{name}.part", "wb") as f:
+                while True:
+                    chunk = await media.content.read(1024)
+                    if not chunk:
+                        break
+                    f.write(chunk)
+
+        # Remove .part suffix once complete
+        # After this point file won't get removed if script gets interrupted
+        os.rename(f"{name}.part", name)
+
+        self.count += 1
+        msg(f"{self.fetch_progress()} {self.board}/{self.dir}/{name}")
+
+    async def download(self):
+        """Download a thread."""
+        if not self.files:
+            # In this case the progress line gets printed to stderr
+            err(f"{self.fetch_progress()} {self.link}")
+            err(f"Thread 404'd!")
+            return
+
+        msg(f"{self.fetch_progress()} {self.link}")
+
+        tout = aiohttp.ClientTimeout(total=None)
+        conn = aiohttp.TCPConnector(limit=opts.connections)
+        # Retries imply attempts after the first try failed
+        # So the max. number of attempts is opts.retries+1
+        attempt = 0
+        while attempt <= opts.retries or opts.retries < 0:
+            if attempt > 0:
+                err(f"Retrying... ({attempt} out of "
+                    f"{opts.retries if opts.retries > 0 else 'Inf'} attempts)")
+                time.sleep(5)
+
+            try:
+                async with aiohttp.ClientSession(timeout=tout, connector=conn) as session:
+                    tasks = [self.get_file(f, session) for f in self.files]
+                    await asyncio.gather(*tasks)
+                # Leave attempt loop early if all files were downloaded successfully
+                break
+            except aiohttp.ClientConnectionError:
+                err("Lost connection!")
+                attempt += 1
+            finally:
+                clean()
 
 
 def err(*args, **kwargs):
@@ -38,8 +156,7 @@ def msg(*args, **kwargs):
 
 
 def parse_cli():
-    global opts
-
+    """Parse the command line arguments with argparse."""
     parser = argparse.ArgumentParser(description="inb4404")
     parser.add_argument(
         "thread", nargs="+",
@@ -51,107 +168,7 @@ def parse_cli():
         "--connections", type=int, default=10,
         help="number of connections to use")
 
-    opts = parser.parse_args()
-
-
-def parse_thread(url):
-    # Custom header value is necessary to avoid 403 errors on 4chan.org
-    # 4channel works just fine without
-    req = Request(url, headers={'User-Agent': '4chan Archiver'})
-    with urlopen(req) as resp:
-        resp_json = resp.read()
-        resp_json = json.loads(resp_json)
-
-    files = [f"{p['tim']}{p['ext']}" for p in resp_json['posts'] if 'tim' in p]
-
-    return files
-
-
-async def download_file(board, dir_name, name, session):
-    global info
-
-    if os.path.exists(name):
-        info['f_count'] += 1
-        return
-
-    url = f"https://i.4cdn.org/{board}/{name}"
-    async with session.get(url) as media:
-        # Open file initially with .part suffix
-        with open(f"{name}.part", "wb") as f:
-            while True:
-                chunk = await media.content.read(1024)
-                if not chunk:
-                    break
-                f.write(chunk)
-
-    # Remove .part suffix once complete
-    # After this point file won't get removed if script gets interrupted
-    os.rename(f"{name}.part", name)
-
-    info['f_count'] += 1
-    t_progress = f"[{info['t_count']: >{info['t_width']}}/{info['threads']}]"
-    f_progress = f"[{info['f_count']: >{info['f_width']}}/{info['files']}]"
-    msg(f"{t_progress} {f_progress} {board}/{dir_name}/{name}")
-
-
-async def download_thread(link):
-    link = link.split("#")[0]
-    t_progress = f"[{info['t_count']: >{info['t_width']}}/{info['threads']}]"
-    msg(f"{t_progress} {link}")
-
-    data = link.partition(".org/")[2]
-    # data has the form <board>/thread/<thread> or <board>/thread/<thread>/<dir name>
-    if len(data.split("/")) > 3:
-        board, _, thread_id, dir_name = data.split("/")
-    else:
-        board, _, thread_id = data.split("/")
-        dir_name = thread_id
-
-    out_dir = os.path.join(workpath, "downloads", board, dir_name)
-    if not os.path.exists(out_dir):
-        os.makedirs(out_dir)
-    os.chdir(out_dir)
-
-    api_call = f"https://a.4cdn.org/{board}/thread/{thread_id}.json"
-    try:
-        files = parse_thread(api_call)
-    except urllib.error.HTTPError:
-        time.sleep(5)
-        try:
-            files = parse_thread(api_call)
-        except urllib.error.HTTPError:
-            err(f"{link} 404'd!")
-            sys.exit(1)
-    except urllib.error.URLError:
-        err("Couldn't establish connection!")
-        sys.exit(1)
-
-    info['files'] = len(files)
-    info['f_width'] = len(str(info['files']))
-    info['f_count'] = 0
-
-    tout = aiohttp.ClientTimeout(total=None)
-    conn = aiohttp.TCPConnector(limit=opts.connections)
-    # Retries imply attempts after the first try failed
-    # So the max. number of attempts is opts.retries+1
-    attempt = 0
-    while attempt <= opts.retries or opts.retries < 0:
-        if attempt > 0:
-            err(f"Retrying... ({attempt} out of "
-                f"{opts.retries if opts.retries > 0 else 'Inf'} attempts)")
-            time.sleep(5)
-
-        try:
-            async with aiohttp.ClientSession(timeout=tout, connector=conn) as session:
-                tasks = [download_file(board, dir_name, f, session) for f in files]
-                await asyncio.gather(*tasks)
-            # Leave attempt loop early if all files were downloaded successfully
-            break
-        except aiohttp.ClientConnectionError:
-            err("Lost connection!")
-            attempt += 1
-        finally:
-            clean()
+    return parser.parse_args()
 
 
 def clean():
@@ -161,19 +178,20 @@ def clean():
 
 
 def main():
-    global info
-
-    parse_cli()
+    """Run the main function body."""
     # Weed out clearly wrong input
     opts.thread = fnmatch.filter(opts.thread, "*boards.4chan*.org/*/thread/*")
-    info['threads'] = len(opts.thread)
-    info['t_width'] = len(str(info['threads']))
-    for t in opts.thread:
-        info['t_count'] += 1
-        asyncio.run(download_thread(t), debug=False)
+
+    for i in range(len(opts.thread)):
+        thread = DownloadableThread(i+1, opts.thread[i])
+        thread.resolve_path()
+        asyncio.run(thread.download(), debug=False)
 
 
 if __name__ == '__main__':
+    script_path = os.path.dirname(os.path.realpath(__file__))
+    opts = parse_cli()
+
     try:
         main()
     except KeyboardInterrupt:
