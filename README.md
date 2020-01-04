@@ -5,7 +5,7 @@ A4A (*Asyncio 4chan Archiver* or *Asyncio 4 Archiving*, depending on how much th
 ## Usage
 
 ```
-usage: inb4404.py [-h] [-r N] [--connections N] thread
+usage: inb4404.py [-h] [-r N] [--connections N] thread [thread ...]
 
 positional arguments:
   thread              url of the thread
@@ -19,9 +19,8 @@ optional arguments:
 
 ## Requirements
 
-Python >= 3.7
-
-[aiohttp](https://aiohttp.readthedocs.io/en/stable/)
+* Python >= 3.7
+* [aiohttp](https://aiohttp.readthedocs.io/en/stable/)
 
 ## Paths
 
