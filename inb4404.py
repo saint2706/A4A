@@ -7,9 +7,8 @@ import json
 import os
 import sys
 import time
+import textwrap
 import urllib.error
-
-from textwrap import dedent
 from urllib.request import Request, urlopen
 
 import aiohttp
@@ -37,7 +36,7 @@ class DownloadableThread():
     def resolve_path(self):
         """Assemble final output path and change the working directory."""
         # This is the fixed directory template
-        out_dir = os.path.join(script_path, "downloads", self.board, self.dir)
+        out_dir = os.path.join(opts.base_dir, self.board, self.dir)
 
         if not os.path.exists(out_dir):
             os.makedirs(out_dir)
@@ -158,6 +157,9 @@ def msg(*args, **kwargs):
 
 def parse_cli():
     """Parse the command line arguments with argparse."""
+    script_path = os.path.dirname(os.path.realpath(__file__))
+    def_path = os.path.join(script_path, "downloads")
+
     parser = argparse.ArgumentParser(
         formatter_class=argparse.RawTextHelpFormatter,
         description="A4A is a Python script to download all files from 4chan(nel) threads."
@@ -166,16 +168,24 @@ def parse_cli():
         "thread", nargs="+",
         help="url of the thread")
     parser.add_argument(
+        "-p", "--path", default=def_path, metavar="PATH", dest="base_dir",
+        help="set output directory (def: %(default)s)"
+    )
+    parser.add_argument(
         "--connections", type=int, default=10, metavar="N",
         help="number of connections to use (def: %(default)s)")
     parser.add_argument(
         "--retries", type=int, default=5, metavar="N",
-        help=dedent("""\
+        help=textwrap.dedent("""\
             how often to resume download if errors occur (def: %(default)s)
               %(metavar)s<0 to retry indefinitely (not recommended)""")
     )
 
-    return parser.parse_args()
+    args = parser.parse_args()
+    # Make sure base_dir is an absolute path
+    args.base_dir = os.path.abspath(args.base_dir)
+
+    return args
 
 
 def clean():
@@ -196,7 +206,6 @@ def main():
 
 
 if __name__ == '__main__':
-    script_path = os.path.dirname(os.path.realpath(__file__))
     opts = parse_cli()
 
     try:
