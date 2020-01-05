@@ -2,6 +2,7 @@
 
 import argparse
 import asyncio
+from base64 import b64decode
 import fnmatch
 import json
 import os
@@ -40,6 +41,7 @@ class DownloadableThread():
             {
                 'link': f"https://i.4cdn.org/{self.board}/{p['tim']}{p['ext']}",
                 'name': f"{p['filename'] if opts.names else p['tim']}{p['ext']}",
+                'md5': b64decode(p['md5']).hex(),
             } for p in resp_json['posts'] if 'tim' in p
         ]
 
@@ -95,9 +97,9 @@ class DownloadableThread():
 
         return progress
 
-    async def get_file(self, link, name, session):
+    async def get_file(self, link, name, md5, session):
         """Download a single file."""
-        if os.path.exists(name):
+        if os.path.exists(name) or opts.archive and check_hash(md5):
             self.count += 1
             return
 
@@ -114,6 +116,8 @@ class DownloadableThread():
         # After this point file won't get removed if script gets interrupted
         os.rename(f"{name}.part", name)
 
+        if opts.archive:
+            log_hash(md5)
         self.count += 1
         msg(f"{self.fetch_progress()} {self.board}/{self.dir}/{name}")
 
@@ -140,7 +144,7 @@ class DownloadableThread():
 
             try:
                 async with aiohttp.ClientSession(timeout=tout, connector=conn) as session:
-                    tasks = [self.get_file(f['link'], f['name'], session)
+                    tasks = [self.get_file(f['link'], f['name'], f['md5'], session)
                              for f in self.files]
                     await asyncio.gather(*tasks)
                 # Leave attempt loop early if all files were downloaded successfully
@@ -186,6 +190,10 @@ def parse_cli():
         help="set output directory (def: %(default)s)"
     )
     parser.add_argument(
+        "-a", "--archive", metavar="FILE", dest="archive",
+        help="keep track of downloaded files by logging MD5 hashes"
+    )
+    parser.add_argument(
         "--connections", type=int, default=10, metavar="N",
         help="number of connections to use (def: %(default)s)")
     parser.add_argument(
@@ -198,8 +206,36 @@ def parse_cli():
     args = parser.parse_args()
     # Make sure base_dir is an absolute path
     args.base_dir = os.path.abspath(args.base_dir)
+    # Read archive content into separate var
+    if args.archive:
+        args.archive = os.path.abspath(args.archive)
+        try:
+            with open(args.archive, "r") as f:
+                _ = f.read(1)
+        except FileNotFoundError:
+            pass
+        except (OSError, UnicodeError):
+            err(f"'{args.archive}' is not a valid archive!")
+            args.archive = None
 
     return args
+
+
+def check_hash(md5):
+    """Test archive for existence of a file's hash."""
+    try:
+        with open(opts.archive, "r") as f:
+            content = [l.strip() for l in f]
+    except FileNotFoundError:
+        return False
+
+    return bool(md5 in content)
+
+
+def log_hash(md5):
+    """Log file's hash in the archive."""
+    with open(opts.archive, "a") as f:
+        print(md5, file=f)
 
 
 def clean():
