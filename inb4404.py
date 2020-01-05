@@ -9,6 +9,7 @@ import sys
 import time
 import urllib.error
 
+from textwrap import dedent
 from urllib.request import Request, urlopen
 
 import aiohttp
@@ -157,16 +158,22 @@ def msg(*args, **kwargs):
 
 def parse_cli():
     """Parse the command line arguments with argparse."""
-    parser = argparse.ArgumentParser(description="inb4404")
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.RawTextHelpFormatter,
+        description="A4A is a Python script to download all files from 4chan(nel) threads."
+    )
     parser.add_argument(
         "thread", nargs="+",
         help="url of the thread")
     parser.add_argument(
-        "-r", "--retries", type=int, default=5,
-        help="how often to resume download after thrown errors (N<0 to retry indefinitely)")
+        "--connections", type=int, default=10, metavar="N",
+        help="number of connections to use (def: %(default)s)")
     parser.add_argument(
-        "--connections", type=int, default=10,
-        help="number of connections to use")
+        "--retries", type=int, default=5, metavar="N",
+        help=dedent("""\
+            how often to resume download if errors occur (def: %(default)s)
+              %(metavar)s<0 to retry indefinitely (not recommended)""")
+    )
 
     return parser.parse_args()
 
