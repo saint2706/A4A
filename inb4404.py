@@ -148,6 +148,9 @@ class DownloadableThread():
             except aiohttp.ClientConnectionError:
                 err("Lost connection!")
                 attempt += 1
+            except aiohttp.ClientPayloadError:
+                err("Malformed or missing chunk!")
+                attempt += 1
             finally:
                 clean()
 
@@ -188,7 +191,7 @@ def parse_cli():
     parser.add_argument(
         "--retries", type=int, default=5, metavar="N",
         help=textwrap.dedent("""\
-            how often to resume download if errors occur (def: %(default)s)
+            how often to retry a thread if errors occur (def: %(default)s)
               %(metavar)s<0 to retry indefinitely (not recommended)""")
     )
 
