@@ -19,6 +19,8 @@ class DownloadableThread():
 
     def __init__(self, position, link):
         """Initialize thread object."""
+        self.count = 0
+        self.files = []
         self.pos = position
         self.link = link.split("#")[0]
 
@@ -30,8 +32,16 @@ class DownloadableThread():
             self.board, _, self.id = info.split("/")
             self.dir = self.id
 
-        self.files = self.gather_files()
-        self.count = 0
+        resp_json = self.get_json()
+        if not resp_json:
+            return
+
+        self.files = [
+            {
+                'link': f"https://i.4cdn.org/{self.board}/{p['tim']}{p['ext']}",
+                'name': f"{p['filename'] if opts.names else p['tim']}{p['ext']}",
+            } for p in resp_json['posts'] if 'tim' in p
+        ]
 
     def resolve_path(self):
         """Assemble final output path and change the working directory."""
@@ -42,22 +52,19 @@ class DownloadableThread():
             os.makedirs(out_dir)
         os.chdir(out_dir)
 
-    def gather_files(self):
+    def get_json(self):
         """Contact 4chan's API to get the names of all files in a thread."""
         api_call = f"https://a.4cdn.org/{self.board}/thread/{self.id}.json"
         # Custom header value is necessary to avoid 403 errors on 4chan.org
         # 4channel works just fine without
         req = Request(api_call, headers={'User-Agent': '4chan Archiver'})
-        files = []
+        resp_json = None
 
         for _ in range(2):
             try:
                 with urlopen(req) as resp:
                     resp_json = resp.read()
                     resp_json = json.loads(resp_json)
-
-                files = [f"{p['tim']}{p['ext']}"
-                         for p in resp_json['posts'] if 'tim' in p]
                 break
             except urllib.error.HTTPError:
                 time.sleep(5)
@@ -69,7 +76,7 @@ class DownloadableThread():
                     err("Lost connection!")
                 sys.exit(1)
 
-        return files
+        return resp_json
 
     def fetch_progress(self):
         """Return thread-wise and file-wise progress."""
@@ -88,13 +95,12 @@ class DownloadableThread():
 
         return progress
 
-    async def get_file(self, name, session):
+    async def get_file(self, link, name, session):
         """Download a single file."""
         if os.path.exists(name):
             self.count += 1
             return
 
-        link = f"https://i.4cdn.org/{self.board}/{name}"
         async with session.get(link) as media:
             # Open file initially with .part suffix
             with open(f"{name}.part", "wb") as f:
@@ -134,7 +140,8 @@ class DownloadableThread():
 
             try:
                 async with aiohttp.ClientSession(timeout=tout, connector=conn) as session:
-                    tasks = [self.get_file(f, session) for f in self.files]
+                    tasks = [self.get_file(f['link'], f['name'], session)
+                             for f in self.files]
                     await asyncio.gather(*tasks)
                 # Leave attempt loop early if all files were downloaded successfully
                 break
@@ -167,6 +174,10 @@ def parse_cli():
     parser.add_argument(
         "thread", nargs="+",
         help="url of the thread")
+    parser.add_argument(
+        "-f", "--filenames", action="store_true", dest="names",
+        help="use original filenames instead of UNIX timestamps"
+    )
     parser.add_argument(
         "-p", "--path", default=def_path, metavar="PATH", dest="base_dir",
         help="set output directory (def: %(default)s)"
