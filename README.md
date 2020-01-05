@@ -5,16 +5,23 @@ A4A (*Asyncio 4chan Archiver* or *Asyncio 4 Archiving*, depending on how much th
 ## Usage
 
 ```
-usage: inb4404.py [-h] [-r N] [--connections N] thread [thread ...]
+usage: inb4404.py [-h] [-f] [-p PATH] [-a FILE] [--connections N]
+                  [--retries N]
+                  thread [thread ...]
+
+A4A is a Python script to download all files from 4chan(nel) threads.
 
 positional arguments:
-  thread              url of the thread
+  thread                url of the thread
 
 optional arguments:
-  -h, --help          show this help message and exit
-  -r, --retries N     how often to resume download after thrown errors (default: 5)
-                        (N<0 to retry indefinitely)  
-  --connections N     number of connections to use (default: 10)
+  -h, --help            show this help message and exit
+  -f, --filenames       use original filenames instead of UNIX timestamps
+  -p, --path PATH       set output directory (def: <script location>/downloads)
+  -a, --archive FILE    keep track of downloaded files by logging MD5 hashes
+  --connections N       number of connections to use (def: 10)
+  --retries N           how often to retry a thread if errors occur (def: 5)
+                          N<0 to retry indefinitely (not recommended)
 ```
 
 ## Requirements
@@ -24,13 +31,16 @@ optional arguments:
 
 ## Paths
 
-Like Exceen's original version there's a fixed output path:
+The final output directory is assembled according to the following structure
 
 ```
-<path to inb4404.py>/downloads/<board>/<directory name>
+<base path>/<board>/<directory name>
 ```
 
-`<directory name>` is the only variable component from a user's perspective (apart from changing the script's location) and can be set by adding the desired name to the thread link with a leading "/". If no particular name is requested, the directory name will default to the thread number.
+`<base path>` and `<directory name>` are variable components, which can be changed by the user.
+
+ * `<base path>` can be changed with `-p/--path` (defaults to `<path to inb4404.py>/downloads`)
+ * `<directory name>` can be set by adding the desired name to the thread link separated by another "/" (defaults to thread number)
 
 For example:
 
