@@ -15,6 +15,30 @@ from urllib.request import Request, urlopen
 import aiohttp
 
 
+class DefaultOptions():
+    """Store defaults for command line options."""
+
+    def __init__(self):
+        script_path = os.path.dirname(os.path.realpath(__file__))
+
+        # Base directory
+        self.PATH = os.path.join(script_path, "downloads")
+
+        # Whether to use the original filenames or UNIX timestamps
+        #   True  -> original filenames
+        #   False -> UNIX timestamps
+        self.USE_NAMES = False
+
+        # Path to an archive file (holds MD5 hashes of downloaded files)
+        self.ARCHIVE = None
+
+        # How many connections to use with aiohttp's ClientSession
+        self.CONNECTIONS = 10
+
+        # How often to retry a thread (!) if errors occur
+        self.RETRIES = 5
+
+
 class DownloadableThread():
     """Store thread-related information and handle its processing."""
 
@@ -171,8 +195,7 @@ def msg(*args, **kwargs):
 
 def parse_cli():
     """Parse the command line arguments with argparse."""
-    script_path = os.path.dirname(os.path.realpath(__file__))
-    def_path = os.path.join(script_path, "downloads")
+    defaults = DefaultOptions()
 
     parser = argparse.ArgumentParser(
         formatter_class=argparse.RawTextHelpFormatter,
@@ -182,22 +205,23 @@ def parse_cli():
         "thread", nargs="+",
         help="url of the thread")
     parser.add_argument(
-        "-f", "--filenames", action="store_true", dest="names",
+        "-f", "--filenames", dest="names", action="store_const",
+        const=True, default=defaults.USE_NAMES,
         help="use original filenames instead of UNIX timestamps"
     )
     parser.add_argument(
-        "-p", "--path", default=def_path, metavar="PATH", dest="base_dir",
+        "-p", "--path", default=defaults.PATH, metavar="PATH", dest="base_dir",
         help="set output directory (def: %(default)s)"
     )
     parser.add_argument(
-        "-a", "--archive", metavar="FILE", dest="archive",
+        "-a", "--archive", metavar="FILE", dest="archive", default=defaults.ARCHIVE,
         help="keep track of downloaded files by logging MD5 hashes"
     )
     parser.add_argument(
-        "--connections", type=int, default=10, metavar="N",
+        "--connections", type=int, metavar="N", default=defaults.CONNECTIONS,
         help="number of connections to use (def: %(default)s)")
     parser.add_argument(
-        "--retries", type=int, default=5, metavar="N",
+        "--retries", type=int, metavar="N", default=defaults.RETRIES,
         help=textwrap.dedent("""\
             how often to retry a thread if errors occur (def: %(default)s)
               %(metavar)s<0 to retry indefinitely (not recommended)""")
