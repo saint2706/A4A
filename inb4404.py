@@ -15,7 +15,7 @@ from urllib.request import Request, urlopen
 import aiohttp
 
 
-class DefaultOptions():
+class DefaultOptions:
     """Store defaults for command line options."""
 
     def __init__(self):
@@ -39,7 +39,7 @@ class DefaultOptions():
         self.RETRIES = 5
 
 
-class DownloadableThread():
+class DownloadableThread:
     """Store thread-related information and handle its processing."""
 
     def __init__(self, position, link):
