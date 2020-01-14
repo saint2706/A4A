@@ -59,12 +59,12 @@ class CustomArgumentParser(argparse.ArgumentParser):
           4chan(nel) thread URL
 
         Options:
-          -h, --help        show help
-          -f, --filenames   use original filenames instead of UNIX timestamps
-          -p, --path PATH   set output directory (def: {self.get_default("base_dir")})
-          -a, --archive     keep track of downloaded files by logging MD5 hashes
-          --connections N   number of connections to use (def: {self.get_default("connections")})
-          --retries N       how often to retry a thread if errors occur (def: {self.get_default("retries")})
+          -h, --help          show help
+          -f, --filenames     use original filenames instead of UNIX timestamps
+          -p, --path PATH     set output directory (def: {self.get_default("base_dir")})
+          -a, --archive FILE  keep track of downloaded files by logging MD5 hashes
+          --connections N     number of connections to use (def: {self.get_default("connections")})
+          --retries N         how often to retry a thread if errors occur (def: {self.get_default("retries")})
                                 N<0 to retry indefinitely (not recommended)
         """)
 
