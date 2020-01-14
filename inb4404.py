@@ -155,7 +155,7 @@ class DownloadableThread:
 
     async def get_file(self, link, name, md5, session):
         """Download a single file."""
-        if os.path.exists(name) or opts.archive and check_hash(md5):
+        if os.path.exists(name) or md5 in opts.archived_md5:
             self.count += 1
             return
 
@@ -283,15 +283,15 @@ def parse_cli():
     return args
 
 
-def check_hash(md5):
-    """Test archive for existence of a file's hash."""
-    try:
+def reload_archive():
+    """Re-read archive for each new thread."""
+    if not (opts.archive and os.path.exists(opts.archive)):
+        content = []
+    else:
         with open(opts.archive, "r") as f:
             content = [l.strip() for l in f]
-    except FileNotFoundError:
-        return False
 
-    return bool(md5 in content)
+    return content
 
 
 def log_hash(md5):
@@ -315,6 +315,7 @@ def main():
     opts.thread = fnmatch.filter(opts.thread, "*boards.4chan*.org/*/thread/*")
 
     for i in range(len(opts.thread)):
+        opts.archived_md5 = reload_archive()
         thread = DownloadableThread(i+1, opts.thread[i])
         thread.resolve_path()
         asyncio.run(thread.download(), debug=False)
