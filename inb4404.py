@@ -8,12 +8,15 @@ import json
 import os
 import sys
 import time
-import textwrap
+from textwrap import dedent
 import urllib.error
 from urllib.request import Request, urlopen
 
 import aiohttp
 
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Classes
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 class DefaultOptions:
     """Store defaults for command line options."""
@@ -36,7 +39,36 @@ class DefaultOptions:
         self.CONNECTIONS = 10
 
         # How often to retry a thread (!) if errors occur
+        #   N>0 -> retry N times
+        #   N=0 -> disable
+        #   N<0 -> retry indefinitely (not recommended)
         self.RETRIES = 5
+
+
+class CustomArgumentParser(argparse.ArgumentParser):
+    """Override ArgumentParser's automatic help text."""
+
+    def format_help(self):
+        """Return custom help text."""
+        help_text = dedent(f"""\
+        A4A is a Python script to download all files from 4chan(nel) threads.
+
+        Usage: {self.prog} [OPTIONS] THREAD [THREAD]...
+
+        Thread:
+          4chan(nel) thread URL
+
+        Options:
+          -h, --help        show help
+          -f, --filenames   use original filenames instead of UNIX timestamps
+          -p, --path PATH   set output directory (def: {self.get_default("base_dir")})
+          -a, --archive     keep track of downloaded files by logging MD5 hashes
+          --connections N   number of connections to use (def: {self.get_default("connections")})
+          --retries N       how often to retry a thread if errors occur (def: {self.get_default("retries")})
+                                N<0 to retry indefinitely (not recommended)
+        """)
+
+        return help_text
 
 
 class DownloadableThread:
@@ -182,6 +214,9 @@ class DownloadableThread:
             finally:
                 clean()
 
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Functions
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 def err(*args, **kwargs):
     """Print to stderr."""
@@ -193,54 +228,57 @@ def msg(*args, **kwargs):
     print(f"[{time.strftime('%X')}]", *args, **kwargs)
 
 
+def positive_int(string):
+    """Convert string provided by argparse to a positive int."""
+    try:
+        value = int(string)
+        if value <= 0:
+            raise ValueError
+    except ValueError:
+        error = f"invalid positive int value: {string}"
+        raise argparse.ArgumentTypeError(error)
+
+    return value
+
+
+def valid_archive(string):
+    """Convert string provided by argparse to an archive path."""
+    path = os.path.abspath(string)
+    try:
+        with open(path, "r") as f:
+            _ = f.read(1)
+    except FileNotFoundError:
+        pass
+    except (OSError, UnicodeError):
+        error = f"{path} is not a valid archive!"
+        raise argparse.ArgumentTypeError(error)
+
+    return path
+
+
 def parse_cli():
     """Parse the command line arguments with argparse."""
     defaults = DefaultOptions()
+    parser = CustomArgumentParser(usage="%(prog)s [OPTIONS] THREAD [THREAD]...")
 
-    parser = argparse.ArgumentParser(
-        formatter_class=argparse.RawTextHelpFormatter,
-        description="A4A is a Python script to download all files from 4chan(nel) threads."
+    parser.add_argument("thread", nargs="+", help="thread URL")
+    parser.add_argument(
+        "-f", "--filenames", dest="names", action="store_true",
+        default=defaults.USE_NAMES
+    )
+    parser.add_argument("-p", "--path", dest="base_dir", default=defaults.PATH)
+    parser.add_argument(
+        "-a", "--archive", dest="archive", type=valid_archive,
+        default=defaults.ARCHIVE
     )
     parser.add_argument(
-        "thread", nargs="+",
-        help="url of the thread")
-    parser.add_argument(
-        "-f", "--filenames", dest="names", action="store_const",
-        const=True, default=defaults.USE_NAMES,
-        help="use original filenames instead of UNIX timestamps"
+        "--connections", type=positive_int, default=defaults.CONNECTIONS
     )
-    parser.add_argument(
-        "-p", "--path", default=defaults.PATH, metavar="PATH", dest="base_dir",
-        help="set output directory (def: %(default)s)"
-    )
-    parser.add_argument(
-        "-a", "--archive", metavar="FILE", dest="archive", default=defaults.ARCHIVE,
-        help="keep track of downloaded files by logging MD5 hashes"
-    )
-    parser.add_argument(
-        "--connections", type=int, metavar="N", default=defaults.CONNECTIONS,
-        help="number of connections to use (def: %(default)s)")
-    parser.add_argument(
-        "--retries", type=int, metavar="N", default=defaults.RETRIES,
-        help=textwrap.dedent("""\
-            how often to retry a thread if errors occur (def: %(default)s)
-              %(metavar)s<0 to retry indefinitely (not recommended)""")
-    )
+    parser.add_argument("--retries", type=int, default=defaults.RETRIES)
 
     args = parser.parse_args()
     # Make sure base_dir is an absolute path
     args.base_dir = os.path.abspath(args.base_dir)
-    # Read archive content into separate var
-    if args.archive:
-        args.archive = os.path.abspath(args.archive)
-        try:
-            with open(args.archive, "r") as f:
-                _ = f.read(1)
-        except FileNotFoundError:
-            pass
-        except (OSError, UnicodeError):
-            err(f"'{args.archive}' is not a valid archive!")
-            args.archive = None
 
     return args
 
@@ -267,6 +305,9 @@ def clean():
     for f in [f for f in os.listdir() if f.endswith(".part")]:
         os.remove(f)
 
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Main Function
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 def main():
     """Run the main function body."""
