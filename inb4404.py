@@ -313,9 +313,9 @@ def clean():
 
 def main():
     """Run the main function body."""
-    for i in range(len(opts.thread)):
+    for i, url in enumerate(opts.thread, start=1):
         opts.archived_md5 = reload_archive()
-        thread = DownloadableThread(i+1, opts.thread[i])
+        thread = DownloadableThread(i, url)
         thread.resolve_path()
         asyncio.run(thread.download(), debug=False)
 
