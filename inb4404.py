@@ -279,6 +279,8 @@ def parse_cli():
     args = parser.parse_args()
     # Make sure base_dir is an absolute path
     args.base_dir = os.path.abspath(args.base_dir)
+    # Weed out clearly wrong thread URLs
+    args.thread = fnmatch.filter(args.thread, "*boards.4chan*.org/*/thread/*")
 
     return args
 
@@ -311,9 +313,6 @@ def clean():
 
 def main():
     """Run the main function body."""
-    # Weed out clearly wrong input
-    opts.thread = fnmatch.filter(opts.thread, "*boards.4chan*.org/*/thread/*")
-
     for i in range(len(opts.thread)):
         opts.archived_md5 = reload_archive()
         thread = DownloadableThread(i+1, opts.thread[i])
