@@ -24,6 +24,12 @@ class DefaultOptions:
     def __init__(self):
         script_path = os.path.dirname(os.path.realpath(__file__))
 
+        # Verbosity of the terminal output
+        #  <0 -> really quiet mode (no output at all)
+        #   0 -> quiet mode (errors/warnings only)
+        #   1 -> default mode (0 + basic progress information)
+        self.VERBOSITY = 1
+
         # Base directory
         self.PATH = os.path.join(script_path, "downloads")
 
@@ -60,8 +66,9 @@ class CustomArgumentParser(argparse.ArgumentParser):
 
         Options:
           -h, --help          show help
-          -f, --filenames     use original filenames instead of UNIX timestamps
+          -q, --quiet         suppress non-error output
           -p, --path PATH     set output directory (def: {self.get_default("base_dir")})
+          -f, --filenames     use original filenames instead of UNIX timestamps
           -a, --archive FILE  keep track of downloaded files by logging MD5 hashes
           --connections N     number of connections to use (def: {self.get_default("connections")})
           --retries N         how often to retry a thread if errors occur (def: {self.get_default("retries")})
@@ -218,14 +225,16 @@ class DownloadableThread:
 # Functions
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-def err(*args, **kwargs):
+def err(*args, level=0, **kwargs):
     """Print to stderr."""
-    print(f"[{time.strftime('%X')}]", *args, file=sys.stderr, **kwargs)
+    if level <= opts.verbosity:
+        print(f"[{time.strftime('%X')}]", *args, file=sys.stderr, **kwargs)
 
 
-def msg(*args, **kwargs):
+def msg(*args, level=1, **kwargs):
     """Print to stdout."""
-    print(f"[{time.strftime('%X')}]", *args, **kwargs)
+    if level <= opts.verbosity:
+        print(f"[{time.strftime('%X')}]", *args, **kwargs)
 
 
 def positive_int(string):
@@ -263,10 +272,14 @@ def parse_cli():
 
     parser.add_argument("thread", nargs="+", help="thread URL")
     parser.add_argument(
+        "-q", "--quiet", dest="verbosity", action="store_const",
+        const=0, default=defaults.VERBOSITY
+    )
+    parser.add_argument("-p", "--path", dest="base_dir", default=defaults.PATH)
+    parser.add_argument(
         "-f", "--filenames", dest="names", action="store_true",
         default=defaults.USE_NAMES
     )
-    parser.add_argument("-p", "--path", dest="base_dir", default=defaults.PATH)
     parser.add_argument(
         "-a", "--archive", dest="archive", type=valid_archive,
         default=defaults.ARCHIVE
