@@ -301,10 +301,10 @@ def parse_cli():
 def reload_archive():
     """Re-read archive for each new thread."""
     if not (opts.archive and os.path.exists(opts.archive)):
-        content = []
+        content = set()
     else:
         with open(opts.archive, "r") as f:
-            content = [l.strip() for l in f]
+            content = {l.strip() for l in f}
 
     return content
 
