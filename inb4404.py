@@ -194,8 +194,6 @@ class DownloadableThread:
 
         msg(f"{self.fetch_progress()} {self.link}")
 
-        tout = aiohttp.ClientTimeout(total=None)
-        conn = aiohttp.TCPConnector(limit=opts.connections)
         # Retries imply attempts after the first try failed
         # So the max. number of attempts is opts.retries+1
         attempt = 0
@@ -206,6 +204,8 @@ class DownloadableThread:
                 time.sleep(5)
 
             try:
+                tout = aiohttp.ClientTimeout(total=None)
+                conn = aiohttp.TCPConnector(limit=opts.connections)
                 async with aiohttp.ClientSession(timeout=tout, connector=conn) as session:
                     tasks = [self.get_file(f['link'], f['name'], f['md5'], session)
                              for f in self.files]
