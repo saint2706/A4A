@@ -318,7 +318,7 @@ def parse_cli():
     # Make sure base_dir is an absolute path
     args.base_dir = os.path.abspath(args.base_dir)
     # Weed out clearly wrong thread URLs
-    args.thread = fnmatch.filter(args.thread, "*boards.4chan*.org/*/thread/*")
+    args.thread = set(fnmatch.filter(args.thread, "*boards.4chan*.org/*/thread/*"))
 
     return args
 
