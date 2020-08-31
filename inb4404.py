@@ -24,6 +24,9 @@ class DefaultOptions:
     def __init__(self):
         script_path = os.path.dirname(os.path.realpath(__file__))
 
+        # List of files to scan for thread links
+        self.LIST = []
+
         # Verbosity of the terminal output
         #  <0 -> really quiet mode (no output at all)
         #   0 -> quiet mode (errors/warnings only)
@@ -60,12 +63,14 @@ class CustomArgumentParser(argparse.ArgumentParser):
         A4A is a Python script to download all files from 4chan(nel) threads.
 
         Usage: {self.prog} [OPTIONS] THREAD [THREAD]...
+               {self.prog} [OPTIONS] -l LIST [-l LIST]...
 
         Thread:
           4chan(nel) thread URL
 
         Options:
           -h, --help          show help
+          -l, --list LIST     read thread links from file
           -q, --quiet         suppress non-error output
           -p, --path PATH     set output directory (def: {self.get_default("base_dir")})
           -f, --filenames     use original filenames instead of UNIX timestamps
@@ -250,6 +255,20 @@ def positive_int(string):
     return value
 
 
+def valid_list(string):
+    """Convert string provided by argparse to list path."""
+    path = os.path.abspath(string)
+    try:
+        with open(path, "r") as f:
+            _ = f.read(1)
+    except FileNotFoundError:
+        raise argparse.ArgumentTypeError(f"{path} does not exist!")
+    except (OSError, UnicodeError):
+        raise argparse.ArgumentTypeError(f"{path} is not a valid text file!")
+
+    return path
+
+
 def valid_archive(string):
     """Convert string provided by argparse to an archive path."""
     path = os.path.abspath(string)
@@ -259,8 +278,7 @@ def valid_archive(string):
     except FileNotFoundError:
         pass
     except (OSError, UnicodeError):
-        error = f"{path} is not a valid archive!"
-        raise argparse.ArgumentTypeError(error)
+        raise argparse.ArgumentTypeError(f"{path} is not a valid archive!")
 
     return path
 
@@ -270,7 +288,10 @@ def parse_cli():
     defaults = DefaultOptions()
     parser = CustomArgumentParser(usage="%(prog)s [OPTIONS] THREAD [THREAD]...")
 
-    parser.add_argument("thread", nargs="+", help="thread URL")
+    parser.add_argument("thread", nargs="*", help="thread URL")
+    parser.add_argument(
+        "-l", "--list", action="append", type=valid_list, default=defaults.LIST
+    )
     parser.add_argument(
         "-q", "--quiet", dest="verbosity", action="store_const",
         const=0, default=defaults.VERBOSITY
@@ -290,6 +311,10 @@ def parse_cli():
     parser.add_argument("--retries", type=int, default=defaults.RETRIES)
 
     args = parser.parse_args()
+    # Scan lists for thread links
+    for l in args.list:
+        with open(l, "r") as f:
+            args.thread.extend([t.strip() for t in f if not t.startswith("#")])
     # Make sure base_dir is an absolute path
     args.base_dir = os.path.abspath(args.base_dir)
     # Weed out clearly wrong thread URLs
@@ -335,6 +360,9 @@ def main():
 
 if __name__ == '__main__':
     opts = parse_cli()
+
+    if not opts.thread:
+        err("No thread links specified!")
 
     try:
         main()
