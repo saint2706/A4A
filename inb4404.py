@@ -219,9 +219,11 @@ class DownloadableThread:
                 break
             except aiohttp.ClientConnectionError:
                 err("Lost connection!")
+                self.count = 0
                 attempt += 1
             except aiohttp.ClientPayloadError:
                 err("Malformed or missing chunk!")
+                self.count = 0
                 attempt += 1
             finally:
                 clean()
