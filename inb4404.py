@@ -18,6 +18,7 @@ import aiohttp
 # Classes
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+
 class DefaultOptions:
     """Store defaults for command line options."""
 
@@ -59,26 +60,28 @@ class CustomArgumentParser(argparse.ArgumentParser):
 
     def format_help(self):
         """Return custom help text."""
-        help_text = dedent(f"""\
+        help_text = dedent(
+            f"""\
         A4A is a Python script to download all files from 4chan(nel) threads.
 
-        Usage: {self.prog} [OPTIONS] THREAD [THREAD]...
-               {self.prog} [OPTIONS] -l LIST [-l LIST]...
+        Usage:  {self.prog} [OPTIONS] THREAD [THREAD]...
+                {self.prog} [OPTIONS] -l LIST [-l LIST]...
 
         Thread:
-          4chan(nel) thread URL
+            4chan(nel) thread URL
 
         Options:
-          -h, --help          show help
-          -l, --list LIST     read thread links from file
-          -q, --quiet         suppress non-error output
-          -p, --path PATH     set output directory (def: {self.get_default("base_dir")})
-          -f, --filenames     use original filenames instead of UNIX timestamps
-          -a, --archive FILE  keep track of downloaded files by logging MD5 hashes
-          --connections N     number of connections to use (def: {self.get_default("connections")})
-          --retries N         how often to retry a thread if errors occur (def: {self.get_default("retries")})
+            -h, --help          show help
+            -l, --list LIST     read thread links from file
+            -q, --quiet         suppress non-error output
+            -p, --path PATH     set output directory (def: {self.get_default("base_dir")})
+            -f, --filenames     use original filenames instead of UNIX timestamps
+            -a, --archive FILE  keep track of downloaded files by logging MD5 hashes
+            --connections N     number of connections to use (def: {self.get_default("connections")})
+            --retries N         how often to retry a thread if errors occur (def: {self.get_default("retries")})
                                 N<0 to retry indefinitely (not recommended)
-        """)
+        """
+        )
 
         return help_text
 
@@ -107,10 +110,12 @@ class DownloadableThread:
 
         self.files = [
             {
-                'link': f"https://i.4cdn.org/{self.board}/{p['tim']}{p['ext']}",
-                'name': f"{p['filename'] if opts.names else p['tim']}{p['ext']}",
-                'md5': b64decode(p['md5']).hex(),
-            } for p in resp_json['posts'] if 'tim' in p
+                "link": f"https://i.4cdn.org/{self.board}/{p['tim']}{p['ext']}",
+                "name": f"{p['filename'] if opts.names else p['tim']}{p['ext']}",
+                "md5": b64decode(p["md5"]).hex(),
+            }
+            for p in resp_json["posts"]
+            if "tim" in p
         ]
 
     def resolve_path(self):
@@ -127,7 +132,7 @@ class DownloadableThread:
         api_call = f"https://a.4cdn.org/{self.board}/thread/{self.id}.json"
         # Custom header value is necessary to avoid 403 errors on 4chan.org
         # 4channel works just fine without
-        req = Request(api_call, headers={'User-Agent': '4chan Archiver'})
+        req = Request(api_call, headers={"User-Agent": "4chan Archiver"})
         resp_json = None
 
         for _ in range(2):
@@ -173,16 +178,33 @@ class DownloadableThread:
 
         async with session.get(link) as media:
             # Open file initially with .part suffix
-            with open(f"{name}.part", "wb") as f:
-                while True:
-                    chunk = await media.content.read(1024)
-                    if not chunk:
-                        break
-                    f.write(chunk)
+            try:
+                with open(f"{name}.part", "wb") as f:
+                    while True:
+                        chunk = await media.content.read(1024)
+                        if not chunk:
+                            break
+                        f.write(chunk)
+            except OSError:
+                err(f"Couldn't open file {name}!")
 
         # Remove .part suffix once complete
         # After this point file won't get removed if script gets interrupted
-        os.rename(f"{name}.part", name)
+        try:
+            os.rename(f"{name}.part", name)
+        except FileExistsError:
+            f.close()
+            i = 1
+            while (
+                os.path.exists(f"{name}.{i}{name.rsplit('.', 1)[1]}")
+                or md5 in opts.archived_md5
+            ):
+                i += 1
+            os.rename(f"{name}.part", f"{name}.{i}.{name.rsplit('.', 1)[1]}")
+        except PermissionError:
+            err(f"Couldn't rename file {name}!")
+        except OSError:
+            err(f"Couldn't rename file {name}!")
 
         if opts.archive:
             log_hash(md5)
@@ -204,16 +226,22 @@ class DownloadableThread:
         attempt = 0
         while attempt <= opts.retries or opts.retries < 0:
             if attempt > 0:
-                err(f"Retrying... ({attempt} out of "
-                    f"{opts.retries if opts.retries > 0 else 'Inf'} attempts)")
+                err(
+                    f"Retrying... ({attempt} out of "
+                    f"{opts.retries if opts.retries > 0 else 'Inf'} attempts)"
+                )
                 time.sleep(5)
 
             try:
                 tout = aiohttp.ClientTimeout(total=None)
                 conn = aiohttp.TCPConnector(limit=opts.connections)
-                async with aiohttp.ClientSession(timeout=tout, connector=conn) as session:
-                    tasks = [self.get_file(f['link'], f['name'], f['md5'], session)
-                             for f in self.files]
+                async with aiohttp.ClientSession(
+                    timeout=tout, connector=conn
+                ) as session:
+                    tasks = [
+                        self.get_file(f["link"], f["name"], f["md5"], session)
+                        for f in self.files
+                    ]
                     await asyncio.gather(*tasks)
                 # Leave attempt loop early if all files were downloaded successfully
                 break
@@ -228,9 +256,11 @@ class DownloadableThread:
             finally:
                 clean()
 
+
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Functions
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
 
 def err(*args, level=0, **kwargs):
     """Print to stderr."""
@@ -295,17 +325,27 @@ def parse_cli():
         "-l", "--list", action="append", type=valid_list, default=defaults.LIST
     )
     parser.add_argument(
-        "-q", "--quiet", dest="verbosity", action="store_const",
-        const=0, default=defaults.VERBOSITY
+        "-q",
+        "--quiet",
+        dest="verbosity",
+        action="store_const",
+        const=0,
+        default=defaults.VERBOSITY,
     )
     parser.add_argument("-p", "--path", dest="base_dir", default=defaults.PATH)
     parser.add_argument(
-        "-f", "--filenames", dest="names", action="store_true",
-        default=defaults.USE_NAMES
+        "-f",
+        "--filenames",
+        dest="names",
+        action="store_true",
+        default=defaults.USE_NAMES,
     )
     parser.add_argument(
-        "-a", "--archive", dest="archive", type=valid_archive,
-        default=defaults.ARCHIVE
+        "-a",
+        "--archive",
+        dest="archive",
+        type=valid_archive,
+        default=defaults.ARCHIVE,
     )
     parser.add_argument(
         "--connections", type=positive_int, default=defaults.CONNECTIONS
@@ -320,7 +360,9 @@ def parse_cli():
     # Make sure base_dir is an absolute path
     args.base_dir = os.path.abspath(args.base_dir)
     # Weed out clearly wrong thread URLs
-    args.thread = set(fnmatch.filter(args.thread, "*boards.4chan*.org/*/thread/*"))
+    args.thread = set(
+        fnmatch.filter(args.thread, "*boards.4chan*.org/*/thread/*")
+    )
 
     return args
 
@@ -345,11 +387,16 @@ def log_hash(md5):
 def clean():
     """Clean output directory of any partially downloaded (.part) files."""
     for f in [f for f in os.listdir() if f.endswith(".part")]:
-        os.remove(f)
+        try:
+            os.remove(f)
+        except PermissionError:
+            err(f"Couldn't rename file - {f}")
+
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Main Function
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
 
 def main():
     """Run the main function body."""
@@ -357,10 +404,11 @@ def main():
         opts.archived_md5 = reload_archive()
         thread = DownloadableThread(i, url)
         thread.resolve_path()
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
         asyncio.run(thread.download(), debug=False)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     opts = parse_cli()
 
     if not opts.thread:
