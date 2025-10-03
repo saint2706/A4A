@@ -400,11 +400,15 @@ def clean():
 
 def main():
     """Run the main function body."""
+    if hasattr(asyncio, "WindowsSelectorEventLoopPolicy") and sys.platform.startswith(
+        "win"
+    ):
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
     for i, url in enumerate(opts.thread, start=1):
         opts.archived_md5 = reload_archive()
         thread = DownloadableThread(i, url)
         thread.resolve_path()
-        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
         asyncio.run(thread.download(), debug=False)
 
 
