@@ -14,6 +14,36 @@ from urllib.request import Request, urlopen
 
 import aiohttp
 
+
+def _resolve_final_name(name):
+    """Return a unique filename by appending a counter if needed."""
+    stem, ext = os.path.splitext(name)
+
+    if not os.path.exists(name):
+        return name
+
+    i = 1
+    while True:
+        candidate = f"{stem}.{i}{ext}"
+        if not os.path.exists(candidate):
+            return candidate
+        i += 1
+
+
+def finalize_part_file(name):
+    """Rename the partial download to its final unique filename."""
+    part_path = f"{name}.part"
+
+    while True:
+        candidate = _resolve_final_name(name)
+        try:
+            os.rename(part_path, candidate)
+        except FileExistsError:
+            continue
+        else:
+            return candidate
+
+
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Classes
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -190,17 +220,10 @@ class DownloadableThread:
 
         # Remove .part suffix once complete
         # After this point file won't get removed if script gets interrupted
+        final_name = name
+
         try:
-            os.rename(f"{name}.part", name)
-        except FileExistsError:
-            f.close()
-            i = 1
-            while (
-                os.path.exists(f"{name}.{i}{name.rsplit('.', 1)[1]}")
-                or md5 in opts.archived_md5
-            ):
-                i += 1
-            os.rename(f"{name}.part", f"{name}.{i}.{name.rsplit('.', 1)[1]}")
+            final_name = finalize_part_file(name)
         except PermissionError:
             err(f"Couldn't rename file {name}!")
         except OSError:
@@ -209,7 +232,7 @@ class DownloadableThread:
         if opts.archive:
             log_hash(md5)
         self.count += 1
-        msg(f"{self.fetch_progress()} {self.board}/{self.dir}/{name}")
+        msg(f"{self.fetch_progress()} {self.board}/{self.dir}/{final_name}")
 
     async def download(self):
         """Download a thread."""
